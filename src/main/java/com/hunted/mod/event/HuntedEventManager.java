@@ -4,7 +4,7 @@ import com.hunted.mod.HuntedMod;
 import com.hunted.mod.config.HuntedConfig;
 import com.hunted.mod.item.HuntedItems;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.IntList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -21,7 +21,7 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.projectile.FireworkRocketEntity;
-import net.minecraft.world.item.FireworkExplosion;
+import net.minecraft.world.item.component.FireworkExplosion;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.Fireworks;
@@ -256,8 +256,8 @@ public class HuntedEventManager {
         ItemStack fw = new ItemStack(Items.FIREWORK_ROCKET);
         FireworkExplosion explosion = new FireworkExplosion(
             FireworkExplosion.Shape.LARGE_BALL,
-            IntList.of(0x8B00FF, 0xBF00FF, 0x6600CC),
-            IntList.of(0x330066),
+            new IntArrayList(new int[]{0x8B00FF, 0xBF00FF, 0x6600CC}),
+            new IntArrayList(new int[]{0x330066}),
             true,
             true
         );
