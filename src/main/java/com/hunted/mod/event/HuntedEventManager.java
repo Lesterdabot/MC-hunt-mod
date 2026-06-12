@@ -4,9 +4,9 @@ import com.hunted.mod.HuntedMod;
 import com.hunted.mod.config.HuntedConfig;
 import com.hunted.mod.item.HuntedItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.IntList;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
@@ -21,8 +21,10 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.projectile.FireworkRocketEntity;
+import net.minecraft.world.item.FireworkExplosion;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.Fireworks;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -143,7 +145,6 @@ public class HuntedEventManager {
         eventTicksLeft     = HuntedConfig.EVENT_DURATION_SECONDS.get() * 20;
         broadcastTicksLeft = HuntedConfig.BROADCAST_INTERVAL_SECONDS.get() * 20;
 
-        // Thunder + lightning at chest
         overworld.playSound(null, landPos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, 1.0f, 0.5f);
         overworld.playSound(null, landPos, SoundEvents.AMBIENT_CAVE.value(), SoundSource.AMBIENT, 0.8f, 0.3f);
         var bolt = EntityType.LIGHTNING_BOLT.create(overworld);
@@ -153,7 +154,6 @@ public class HuntedEventManager {
             overworld.addFreshEntity(bolt);
         }
 
-        // Darkness effect to all
         for (ServerPlayer p : server.getPlayerList().getPlayers())
             p.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 60, 0, false, false));
 
@@ -163,7 +163,6 @@ public class HuntedEventManager {
             .replace("{y}", String.valueOf(landPos.getY()))
             .replace("{z}", String.valueOf(landPos.getZ())));
         broadcast("§5☠ §eThe hunt lasts §c" + totalMins + " minutes§e. Last one holding the crown wins!");
-
         sendTitleToAll(
             Component.literal("§5§l☠ THE HUNT BEGINS ☠"),
             Component.literal("§eChest at §f" + landPos.getX() + ", " + landPos.getY() + ", " + landPos.getZ())
@@ -194,24 +193,20 @@ public class HuntedEventManager {
 
         if (scanningForNewTarget || targetUUID == null) return;
 
-        // Coord broadcast
         broadcastTicksLeft--;
         if (broadcastTicksLeft <= 0) {
             broadcastTargetCoords();
             broadcastTicksLeft = HuntedConfig.BROADCAST_INTERVAL_SECONDS.get() * 20;
         }
 
-        // Refresh glow every 3s
         if (broadcastTicksLeft % 60 == 0) {
             ServerPlayer t = server.getPlayerList().getPlayer(targetUUID);
             if (t != null) t.addEffect(new MobEffectInstance(MobEffects.GLOWING, 80, 0, false, false));
         }
 
-        // Particles every second
         particleTick++;
         if (particleTick >= 20) { particleTick = 0; spawnTargetParticles(); }
 
-        // Ambient sound every 10s
         soundTick++;
         if (soundTick >= 200) {
             soundTick = 0;
@@ -248,30 +243,25 @@ public class HuntedEventManager {
         ServerLevel level = (ServerLevel) winner.level();
         Random rand = new Random();
         for (int i = 0; i < 5; i++) {
-            ItemStack fw = buildFirework();
             FireworkRocketEntity rocket = new FireworkRocketEntity(level,
                 winner.getX() + (rand.nextDouble() - 0.5) * 4,
                 winner.getY() + 1,
-                winner.getZ() + (rand.nextDouble() - 0.5) * 4, fw);
+                winner.getZ() + (rand.nextDouble() - 0.5) * 4,
+                buildFirework());
             level.addFreshEntity(rocket);
         }
     }
 
     private static ItemStack buildFirework() {
         ItemStack fw = new ItemStack(Items.FIREWORK_ROCKET);
-        CompoundTag tag = fw.getOrCreateTag();
-        CompoundTag fireworks = new CompoundTag();
-        fireworks.putByte("Flight", (byte) 2);
-        ListTag explosions = new ListTag();
-        CompoundTag explosion = new CompoundTag();
-        explosion.putByte("Type", (byte) 1);
-        explosion.putIntArray("Colors", new int[]{0x8B00FF, 0xBF00FF, 0x6600CC});
-        explosion.putIntArray("FadeColors", new int[]{0x330066});
-        explosion.putBoolean("Trail", true);
-        explosion.putBoolean("Flicker", true);
-        explosions.add(explosion);
-        fireworks.put("Explosions", explosions);
-        tag.put("Fireworks", fireworks);
+        FireworkExplosion explosion = new FireworkExplosion(
+            FireworkExplosion.Shape.LARGE_BALL,
+            IntList.of(0x8B00FF, 0xBF00FF, 0x6600CC),
+            IntList.of(0x330066),
+            true,
+            true
+        );
+        fw.set(DataComponents.FIREWORKS, new Fireworks(2, List.of(explosion)));
         return fw;
     }
 
@@ -344,7 +334,6 @@ public class HuntedEventManager {
         player.getInventory().offhand.set(0, new ItemStack(HuntedItems.CURSED_CROWN.get(), 1));
         chestLevel.setBlock(chestPos, Blocks.AIR.defaultBlockState(), 3);
 
-        // Thunder crack on claim
         ServerLevel level = (ServerLevel) player.level();
         level.playSound(null, player.blockPosition(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, 1.0f, 0.6f);
         level.playSound(null, player.blockPosition(), SoundEvents.WITHER_SPAWN, SoundSource.HOSTILE, 0.6f, 0.5f);
