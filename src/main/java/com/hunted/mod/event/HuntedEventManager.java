@@ -33,7 +33,6 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
-import net.neoforged.neoforge.event.entity.player.ItemTossEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -348,44 +347,19 @@ public class HuntedEventManager {
         setTarget(player);
     }
 
-    /** Cancel crown drop from Q key or inventory drag — fires before item leaves inventory */
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public static void onItemToss(ItemTossEvent e) {
-        if (targetUUID == null) return;
-        if (!(e.getPlayer() instanceof ServerPlayer player)) return;
-        if (!player.getUUID().equals(targetUUID)) return;
-        if (!player.isAlive()) return;
-        if (e.getEntity().getItem().is(HuntedItems.CURSED_CROWN.get())) {
-            e.setCanceled(true);
-            // Make sure crown stays in offhand
-            if (!player.getInventory().offhand.get(0).is(HuntedItems.CURSED_CROWN.get())) {
-                player.getInventory().offhand.set(0, new ItemStack(HuntedItems.CURSED_CROWN.get(), 1));
-            }
-        }
-    }
-
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post e) {
         if (phase != Phase.ACTIVE || targetUUID == null) return;
         if (!(e.getEntity() instanceof ServerPlayer player)) return;
         if (!player.getUUID().equals(targetUUID) || !player.isAlive()) return;
 
-        boolean inOffhand   = player.getInventory().offhand.get(0).is(HuntedItems.CURSED_CROWN.get());
-        boolean inInventory = player.getInventory().items.stream().anyMatch(s -> s.is(HuntedItems.CURSED_CROWN.get()));
-        if (inOffhand) return;
+        // Step 1: purge ALL crowns from main inventory (prevents duplication)
+        player.getInventory().items.replaceAll(s -> s.is(HuntedItems.CURSED_CROWN.get()) ? ItemStack.EMPTY : s);
 
-        if (inInventory) {
-            for (int i = 0; i < player.getInventory().items.size(); i++) {
-                if (player.getInventory().items.get(i).is(HuntedItems.CURSED_CROWN.get())) {
-                    ItemStack crown = player.getInventory().items.get(i).copy();
-                    player.getInventory().items.set(i, ItemStack.EMPTY);
-                    ItemStack curOff = player.getInventory().offhand.get(0);
-                    if (!curOff.isEmpty()) player.getInventory().add(curOff);
-                    player.getInventory().offhand.set(0, crown);
-                    break;
-                }
-            }
-        } else {
+        // Step 2: ensure exactly one crown is in offhand
+        if (!player.getInventory().offhand.get(0).is(HuntedItems.CURSED_CROWN.get())) {
+            ItemStack curOff = player.getInventory().offhand.get(0);
+            if (!curOff.isEmpty()) player.getInventory().add(curOff);
             player.getInventory().offhand.set(0, new ItemStack(HuntedItems.CURSED_CROWN.get(), 1));
         }
     }
