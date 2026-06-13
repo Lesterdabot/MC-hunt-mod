@@ -33,6 +33,7 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
+import net.neoforged.neoforge.event.entity.player.ItemTossEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -199,7 +200,8 @@ public class HuntedEventManager {
             broadcastTicksLeft = HuntedConfig.BROADCAST_INTERVAL_SECONDS.get() * 20;
         }
 
-        if (broadcastTicksLeft % 60 == 0) {
+        // Refresh glow every 3s independently
+        if ((20 * 20 - broadcastTicksLeft) % 60 == 0) {
             ServerPlayer t = server.getPlayerList().getPlayer(targetUUID);
             if (t != null) t.addEffect(new MobEffectInstance(MobEffects.GLOWING, 80, 0, false, false));
         }
@@ -346,6 +348,22 @@ public class HuntedEventManager {
         setTarget(player);
     }
 
+    /** Cancel crown drop from Q key or inventory drag — fires before item leaves inventory */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onItemToss(ItemTossEvent e) {
+        if (targetUUID == null) return;
+        if (!(e.getPlayer() instanceof ServerPlayer player)) return;
+        if (!player.getUUID().equals(targetUUID)) return;
+        if (!player.isAlive()) return;
+        if (e.getEntity().getItem().is(HuntedItems.CURSED_CROWN.get())) {
+            e.setCanceled(true);
+            // Make sure crown stays in offhand
+            if (!player.getInventory().offhand.get(0).is(HuntedItems.CURSED_CROWN.get())) {
+                player.getInventory().offhand.set(0, new ItemStack(HuntedItems.CURSED_CROWN.get(), 1));
+            }
+        }
+    }
+
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post e) {
         if (phase != Phase.ACTIVE || targetUUID == null) return;
@@ -418,7 +436,7 @@ public class HuntedEventManager {
 
     private static void setTarget(ServerPlayer player) {
         targetUUID = player.getUUID();
-        broadcastTicksLeft = 3 * 20;
+        broadcastTicksLeft = HuntedConfig.BROADCAST_INTERVAL_SECONDS.get() * 20;
         particleTick = soundTick = 0;
         player.addEffect(new MobEffectInstance(MobEffects.GLOWING, 80, 0, false, false));
         broadcast(HuntedConfig.MSG_TARGET_ACQUIRED.get().replace("{player}", player.getName().getString()));
